@@ -28,7 +28,7 @@
       <div class="card-meta">
         <div v-if="todo.due_date" class="meta-item">
           <span class="meta-icon">📅</span>
-          <span>{{ formatDate(todo.due_date) }}</span>
+          <span>Échéance : {{ formatDate(todo.due_date) }}</span>
         </div>
         <div class="meta-item">
           <span class="meta-icon">👤</span>

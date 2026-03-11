@@ -135,13 +135,20 @@ const colorLabels = { red: 'Rouge', orange: 'Orange', yellow: 'Jaune', green: 'V
 const today = new Date().toISOString().split('T')[0]
 
 const filteredTodos = computed(() => {
-  return todos.value.filter(todo => {
-    if (filterColor.value !== 'all' && todo.color_status !== filterColor.value) return false
-    if (filterStatus.value === 'all') return true
-    if (!todo.due_date) return filterStatus.value === 'all'
-    const status = todo.due_date >= today ? 'a-faire' : 'depasse'
-    return status === filterStatus.value
-  })
+  return todos.value
+    .filter(todo => {
+      if (filterColor.value !== 'all' && todo.color_status !== filterColor.value) return false
+      if (filterStatus.value === 'all') return true
+      if (!todo.due_date) return false
+      const status = todo.due_date >= today ? 'a-faire' : 'depasse'
+      return status === filterStatus.value
+    })
+    .sort((a, b) => {
+      if (!a.due_date && !b.due_date) return 0
+      if (!a.due_date) return 1   // sans date → à la fin
+      if (!b.due_date) return -1
+      return a.due_date.localeCompare(b.due_date) // date la plus proche en premier
+    })
 })
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
