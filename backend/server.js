@@ -4,6 +4,8 @@ dns.setDefaultResultOrder('ipv4first'); // Force IPv4 on Render
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
+const fs = require('fs');
+const path = require('path');
 
 const authRoutes = require('./routes/auth');
 const todosRoutes = require('./routes/todos');
@@ -15,9 +17,10 @@ const PORT = process.env.PORT || 3001;
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: {
-    rejectUnauthorized: false, // Required for Supabase / Render hosted Postgres
+    rejectUnauthorized: true,
+    ca: fs.readFileSync(path.join(__dirname, 'prod-ca-2021.crt')).toString(),
   },
-  family: 4, // Force IPv4 (Render free tier blocks IPv6)
+  family: 4,
 });
 
 // Test DB connection on startup
