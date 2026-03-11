@@ -6,6 +6,19 @@ const { Resend } = require('resend');
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+// Cookie is cross-domain (Vercel → Render) so it must be Secure + SameSite=None.
+// We detect prod by checking if FRONTEND_URL is an https URL (not localhost).
+function cookieOptions() {
+  const frontendUrl = process.env.FRONTEND_URL || '';
+  const isProduction = frontendUrl.startsWith('https://');
+  return {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  };
+}
+
 // ── POST /api/auth/request-login ──────────────────────────────────────────────
 // Accepts an email address, creates (or finds) the user, generates a magic-link
 // token valid for 15 minutes, and sends it by email via Resend.
@@ -212,13 +225,7 @@ router.post('/session', async (req, res) => {
       { expiresIn: '7d' }
     );
 
-    const isProduction = process.env.NODE_ENV === 'production';
-    res.cookie('auth_token', jwtToken, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? 'none' : 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    res.cookie('auth_token', jwtToken, cookieOptions());
 
     return res.json({ userId: record.user_id, email: record.email });
   } catch (err) {
@@ -244,12 +251,7 @@ router.get('/me', (req, res) => {
 
 // ── GET /api/auth/logout ──────────────────────────────────────────────────────
 router.get('/logout', (req, res) => {
-  const isProduction = process.env.NODE_ENV === 'production';
-  res.clearCookie('auth_token', {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? 'none' : 'lax',
-  });
+  res.clearCookie('auth_token', cookieOptions());
   return res.json({ message: 'Logged out.' });
 });
 
