@@ -1,111 +1,83 @@
 const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
 const { v4: uuidv4 } = require('uuid');
 const { Resend } = require('resend');
 
 const resend = new Resend(process.env.RESEND_API_KEY);
+const BCRYPT_ROUNDS = 12;
 
-// Cookie is cross-domain (Vercel → Render) so it must be Secure + SameSite=None.
-// We detect prod by checking if FRONTEND_URL is an https URL (not localhost).
-function cookieOptions() {
-  const frontendUrl = process.env.FRONTEND_URL || '';
-  const isProduction = frontendUrl.startsWith('https://');
-  return {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? 'none' : 'lax',
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-  };
+function issueJwt(userId, email) {
+  return jwt.sign({ userId, email }, process.env.JWT_SECRET, { expiresIn: '7d' });
 }
 
-// ── POST /api/auth/request-login ──────────────────────────────────────────────
-// Accepts an email address, creates (or finds) the user, generates a magic-link
-// token valid for 15 minutes, and sends it by email via Resend.
-router.post('/request-login', async (req, res) => {
-  const { email } = req.body;
+// ── POST /api/auth/register ───────────────────────────────────────────────────
+// Creates account, sends confirmation email.
+router.post('/register', async (req, res) => {
+  const { email, password } = req.body;
 
-  if (!email || typeof email !== 'string') {
-    return res.status(400).json({ error: 'A valid email address is required.' });
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email et mot de passe requis.' });
+  }
+  if (typeof password !== 'string' || password.length < 6) {
+    return res.status(400).json({ error: 'Le mot de passe doit faire au moins 6 caractères.' });
+  }
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email.trim().toLowerCase())) {
+    return res.status(400).json({ error: 'Adresse email invalide.' });
   }
 
   const normalizedEmail = email.trim().toLowerCase();
-
-  // Basic email format validation
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(normalizedEmail)) {
-    return res.status(400).json({ error: 'Invalid email address format.' });
-  }
-
   const pool = req.app.locals.pool;
 
   try {
-    // Upsert user — create if not exists, return existing if already there
-    const userResult = await pool.query(
-      `INSERT INTO users (email)
-       VALUES ($1)
-       ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email
-       RETURNING id, email`,
-      [normalizedEmail]
-    );
-    const user = userResult.rows[0];
+    // Check if email already exists
+    const existing = await pool.query('SELECT id, email_verified FROM users WHERE email = $1', [normalizedEmail]);
+    if (existing.rows.length > 0) {
+      if (existing.rows[0].email_verified) {
+        return res.status(409).json({ error: 'Un compte existe déjà avec cet email.' });
+      } else {
+        // Account exists but not verified — resend confirmation
+        await pool.query('DELETE FROM users WHERE email = $1', [normalizedEmail]);
+      }
+    }
 
-    // Invalidate any previously unused tokens for this user to avoid confusion
-    await pool.query(
-      `UPDATE magic_tokens SET used = TRUE
-       WHERE user_id = $1 AND used = FALSE`,
-      [user.id]
-    );
-
-    // Create a new magic token — expires in 15 minutes
-    const rawToken = uuidv4();
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 min
+    const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+    const verificationToken = uuidv4();
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
 
     await pool.query(
-      `INSERT INTO magic_tokens (user_id, token, expires_at)
-       VALUES ($1, $2, $3)`,
-      [user.id, rawToken, expiresAt]
+      `INSERT INTO users (email, password_hash, email_verified, verification_token, verification_expires_at)
+       VALUES ($1, $2, FALSE, $3, $4)`,
+      [normalizedEmail, passwordHash, verificationToken, verificationExpires]
     );
 
-    // Build the magic link URL
-    const backendUrl =
-      process.env.BACKEND_URL ||
-      `http://localhost:${process.env.PORT || 3001}`;
-    const magicLink = `${backendUrl}/api/auth/verify?token=${rawToken}`;
+    const backendUrl = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 3001}`;
+    const verifyLink = `${backendUrl}/api/auth/verify-email?token=${verificationToken}`;
 
-    // Send email via Resend
-    const { error: sendError } = await resend.emails.send({
+    await resend.emails.send({
       from: process.env.RESEND_FROM_EMAIL || 'noreply@yourdomain.com',
       to: normalizedEmail,
-      subject: 'Your login link — Todo App',
+      subject: 'Confirmez votre inscription — Todo App',
       html: `
         <!DOCTYPE html>
         <html lang="fr">
-        <head>
-          <meta charset="UTF-8" />
-          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-          <title>Login Link</title>
-        </head>
-        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-                     background: #f9fafb; margin: 0; padding: 40px 20px;">
-          <div style="max-width: 480px; margin: 0 auto; background: #ffffff;
-                      border-radius: 12px; padding: 40px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
-            <h1 style="margin: 0 0 8px; font-size: 24px; color: #111827;">
-              Connexion à Todo App
-            </h1>
-            <p style="margin: 0 0 24px; color: #6b7280; font-size: 15px;">
-              Cliquez sur le bouton ci-dessous pour vous connecter. Ce lien est
-              valable <strong>15 minutes</strong>.
+        <head><meta charset="UTF-8" /><title>Confirmation</title></head>
+        <body style="font-family:-apple-system,sans-serif;background:#f9fafb;margin:0;padding:40px 20px;">
+          <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:12px;padding:40px;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+            <h1 style="margin:0 0 8px;font-size:24px;color:#111827;">Bienvenue sur Todo App</h1>
+            <p style="margin:0 0 24px;color:#6b7280;font-size:15px;">
+              Cliquez sur le bouton ci-dessous pour confirmer votre email et vous connecter.
+              Ce lien est valable <strong>24 heures</strong>.
             </p>
-            <a href="${magicLink}"
-               style="display: inline-block; padding: 14px 28px; background: #4f46e5;
-                      color: #ffffff; text-decoration: none; border-radius: 8px;
-                      font-size: 15px; font-weight: 600;">
-              Se connecter
+            <a href="${verifyLink}"
+               style="display:inline-block;padding:14px 28px;background:#4f46e5;color:#fff;
+                      text-decoration:none;border-radius:8px;font-size:15px;font-weight:600;">
+              Confirmer mon email
             </a>
-            <p style="margin: 24px 0 0; color: #9ca3af; font-size: 13px;">
-              Si vous n'avez pas demandé ce lien, ignorez cet email.<br/>
-              Lien direct : <a href="${magicLink}" style="color: #6b7280;">${magicLink}</a>
+            <p style="margin:24px 0 0;color:#9ca3af;font-size:13px;">
+              Si vous n'avez pas créé ce compte, ignorez cet email.
             </p>
           </div>
         </body>
@@ -113,75 +85,94 @@ router.post('/request-login', async (req, res) => {
       `,
     });
 
-    if (sendError) {
-      console.error('Resend error:', sendError);
-      return res.status(500).json({ error: 'Failed to send login email. Please try again.' });
-    }
-
-    return res.json({
-      message: 'Magic link sent! Check your email to complete login.',
-    });
+    return res.json({ message: 'Inscription réussie ! Vérifiez votre email pour confirmer votre compte.' });
   } catch (err) {
-    console.error('request-login error:', err);
-    return res.status(500).json({ error: 'Internal server error.' });
+    console.error('register error:', err);
+    return res.status(500).json({ error: 'Erreur interne du serveur.' });
   }
 });
 
-// ── GET /api/auth/verify?token=xxx ────────────────────────────────────────────
-// Validates the magic token, marks it as used, issues a 7-day JWT, and
-// redirects the browser to the frontend with the token in the URL hash.
-router.get('/verify', async (req, res) => {
+// ── GET /api/auth/verify-email?token=xxx ─────────────────────────────────────
+// Validates email, marks account as verified, issues JWT, redirects to frontend.
+router.get('/verify-email', async (req, res) => {
   const { token } = req.query;
-
-  if (!token) {
-    return res.status(400).send('Missing token parameter.');
-  }
+  if (!token) return res.status(400).send('Token manquant.');
 
   const pool = req.app.locals.pool;
 
   try {
-    // Fetch the token record
-    const tokenResult = await pool.query(
-      `SELECT mt.id, mt.user_id, mt.expires_at, mt.used, u.email
-       FROM magic_tokens mt
-       JOIN users u ON u.id = mt.user_id
-       WHERE mt.token = $1`,
+    const result = await pool.query(
+      `SELECT id, email, email_verified, verification_expires_at FROM users WHERE verification_token = $1`,
       [token]
     );
 
-    if (tokenResult.rows.length === 0) {
-      return res.status(400).send('Invalid or expired login link.');
+    if (result.rows.length === 0) {
+      return res.status(400).send('Lien de confirmation invalide.');
     }
 
-    const record = tokenResult.rows[0];
+    const user = result.rows[0];
 
-    if (record.used) {
-      return res.status(400).send('This login link has already been used.');
+    if (user.email_verified) {
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      return res.redirect(`${frontendUrl}#auth_token=${issueJwt(user.id, user.email)}`);
     }
 
-    if (new Date(record.expires_at) < new Date()) {
-      return res.status(400).send('This login link has expired. Please request a new one.');
+    if (new Date(user.verification_expires_at) < new Date()) {
+      return res.status(400).send('Ce lien a expiré. Veuillez vous réinscrire.');
     }
 
-    // Mark token as used
-    await pool.query(`UPDATE magic_tokens SET used = TRUE WHERE id = $1`, [
-      record.id,
-    ]);
-
-    // Issue a 7-day JWT and pass it to the frontend via URL hash.
-    // Using localStorage + Bearer token is the reliable cross-domain approach
-    // (cross-domain httpOnly cookies are blocked by Safari ITP and Chrome third-party cookie phase-out).
-    const jwtToken = jwt.sign(
-      { userId: record.user_id, email: record.email },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
+    await pool.query(
+      `UPDATE users SET email_verified = TRUE, verification_token = NULL, verification_expires_at = NULL WHERE id = $1`,
+      [user.id]
     );
 
+    const jwtToken = issueJwt(user.id, user.email);
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     return res.redirect(`${frontendUrl}#auth_token=${jwtToken}`);
   } catch (err) {
-    console.error('verify error:', err);
-    return res.status(500).send('Internal server error.');
+    console.error('verify-email error:', err);
+    return res.status(500).send('Erreur interne du serveur.');
+  }
+});
+
+// ── POST /api/auth/login ──────────────────────────────────────────────────────
+// Login with email + password, returns JWT.
+router.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email et mot de passe requis.' });
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+  const pool = req.app.locals.pool;
+
+  try {
+    const result = await pool.query(
+      'SELECT id, email, password_hash, email_verified FROM users WHERE email = $1',
+      [normalizedEmail]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: 'Email ou mot de passe incorrect.' });
+    }
+
+    const user = result.rows[0];
+
+    const passwordMatch = await bcrypt.compare(password, user.password_hash);
+    if (!passwordMatch) {
+      return res.status(401).json({ error: 'Email ou mot de passe incorrect.' });
+    }
+
+    if (!user.email_verified) {
+      return res.status(403).json({ error: 'Veuillez confirmer votre email avant de vous connecter.' });
+    }
+
+    const jwtToken = issueJwt(user.id, user.email);
+    return res.json({ token: jwtToken, email: user.email });
+  } catch (err) {
+    console.error('login error:', err);
+    return res.status(500).json({ error: 'Erreur interne du serveur.' });
   }
 });
 
@@ -189,14 +180,14 @@ router.get('/verify', async (req, res) => {
 router.get('/me', (req, res) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'No token provided.' });
+    return res.status(401).json({ error: 'Non authentifié.' });
   }
   const token = authHeader.slice(7);
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     return res.json({ userId: decoded.userId, email: decoded.email });
-  } catch (err) {
-    return res.status(401).json({ error: 'Invalid or expired token.' });
+  } catch {
+    return res.status(401).json({ error: 'Token invalide ou expiré.' });
   }
 });
 

@@ -70,6 +70,7 @@
     <AuthModal
       v-if="showAuthModal"
       @close="showAuthModal = false"
+      @logged-in="handleLoggedIn"
     />
 
     <AddTodoModal
@@ -132,6 +133,11 @@ async function loadUser() {
   } catch {
     // Network error — silently ignore
   }
+}
+
+function handleLoggedIn(user) {
+  currentUser.value = user
+  showAuthModal.value = false
 }
 
 function logout() {
