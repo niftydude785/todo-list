@@ -160,12 +160,19 @@ async function submit() {
   loading.value = true
   error.value = ''
 
+  const token = localStorage.getItem('auth_token')
+  if (!token) {
+    error.value = 'Vous devez être connecté pour ajouter une tâche.'
+    loading.value = false
+    return
+  }
+
   try {
     const res = await fetch(`${API_URL}/api/todos`, {
       method: 'POST',
-      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
         text: form.text.trim(),

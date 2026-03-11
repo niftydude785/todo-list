@@ -6,11 +6,11 @@ const jwt = require('jsonwebtoken');
 // Attaches req.user = { userId, email } when a valid Bearer token is present.
 // Returns 401 if the token is missing or invalid.
 function requireAuth(req, res, next) {
-  const token = req.cookies?.auth_token;
-  if (!token) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Authentication required.' });
   }
-
+  const token = authHeader.slice(7);
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = { userId: decoded.userId, email: decoded.email };

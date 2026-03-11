@@ -97,49 +97,45 @@ const showAuthModal = ref(false)
 const showAddModal = ref(false)
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
+function getToken() {
+  return localStorage.getItem('auth_token')
+}
 
-// After magic link, backend redirects to /?session_token=xxx
-// We exchange it via fetch so the browser properly stores the httpOnly cookie.
-async function exchangeSessionToken() {
-  const params = new URLSearchParams(window.location.search)
-  const sessionToken = params.get('session_token')
-  if (!sessionToken) return false
+function authHeaders() {
+  const token = getToken()
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
 
-  // Clean the URL immediately
-  window.history.replaceState(null, '', window.location.pathname)
-
-  try {
-    const res = await fetch(`${API_URL}/api/auth/session`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session_token: sessionToken }),
-    })
-    if (res.ok) {
-      currentUser.value = await res.json()
-      return true
-    }
-  } catch (err) {
-    console.error('exchangeSessionToken error:', err)
+// After magic link, backend redirects to /#auth_token=<jwt>
+function extractTokenFromHash() {
+  const hash = window.location.hash
+  if (!hash.startsWith('#auth_token=')) return
+  const token = hash.slice('#auth_token='.length)
+  if (token) {
+    localStorage.setItem('auth_token', token)
+    window.history.replaceState(null, '', window.location.pathname)
   }
-  return false
 }
 
 async function loadUser() {
+  const token = getToken()
+  if (!token) return
   try {
     const res = await fetch(`${API_URL}/api/auth/me`, {
-      credentials: 'include',
+      headers: { Authorization: `Bearer ${token}` },
     })
     if (res.ok) {
       currentUser.value = await res.json()
+    } else {
+      localStorage.removeItem('auth_token')
     }
   } catch {
-    // Network error — silently ignore, user stays logged-out
+    // Network error — silently ignore
   }
 }
 
-async function logout() {
-  await fetch(`${API_URL}/api/auth/logout`, { credentials: 'include' })
+function logout() {
+  localStorage.removeItem('auth_token')
   currentUser.value = null
 }
 
@@ -169,7 +165,7 @@ async function handleDelete(id) {
   try {
     const res = await fetch(`${API_URL}/api/todos/${id}`, {
       method: 'DELETE',
-      credentials: 'include',
+      headers: authHeaders(),
     })
     if (res.ok) {
       todos.value = todos.value.filter((t) => t.id !== id)
@@ -185,8 +181,8 @@ async function handleDelete(id) {
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 onMounted(async () => {
-  const exchanged = await exchangeSessionToken()
-  if (!exchanged) await loadUser()
+  extractTokenFromHash()
+  await loadUser()
   await fetchTodos()
 })
 </script>
