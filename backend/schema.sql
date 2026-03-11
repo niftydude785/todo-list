@@ -26,6 +26,16 @@ CREATE TABLE IF NOT EXISTS todos (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
+-- Short-lived session tokens exchanged by the frontend after magic link
+CREATE TABLE IF NOT EXISTS session_tokens (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  token VARCHAR(255) UNIQUE NOT NULL,
+  expires_at TIMESTAMP NOT NULL,
+  used BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
 -- Optional: index for faster token lookups
 CREATE INDEX IF NOT EXISTS magic_tokens_token_idx ON magic_tokens(token);
 

@@ -155,30 +155,75 @@ router.get('/verify', async (req, res) => {
       record.id,
     ]);
 
-    // Issue a 7-day JWT
-    const jwtPayload = {
-      userId: record.user_id,
-      email: record.email,
-    };
+    // Create a short-lived session token (60s) the frontend will exchange for a cookie.
+    // Cookies set during cross-domain redirects are blocked by most browsers (Safari ITP).
+    // Instead we pass a one-time token in the URL; the frontend exchanges it via fetch
+    // with credentials:include so the browser properly stores the httpOnly cookie.
+    const sessionToken = uuidv4();
+    const sessionExpiry = new Date(Date.now() + 60 * 1000); // 60 seconds
 
-    const jwtToken = jwt.sign(jwtPayload, process.env.JWT_SECRET, {
-      expiresIn: '7d',
-    });
+    await pool.query(
+      `INSERT INTO session_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)`,
+      [record.user_id, sessionToken, sessionExpiry]
+    );
 
-    // Set JWT in a secure httpOnly cookie (7 days)
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    return res.redirect(`${frontendUrl}?session_token=${sessionToken}`);
+  } catch (err) {
+    console.error('verify error:', err);
+    return res.status(500).send('Internal server error.');
+  }
+});
+
+// ── POST /api/auth/session ────────────────────────────────────────────────────
+// Frontend exchanges the one-time session_token (from URL) for an httpOnly cookie.
+router.post('/session', async (req, res) => {
+  const { session_token } = req.body;
+  if (!session_token) {
+    return res.status(400).json({ error: 'Missing session_token.' });
+  }
+
+  const pool = req.app.locals.pool;
+
+  try {
+    const result = await pool.query(
+      `SELECT st.id, st.user_id, st.expires_at, st.used, u.email
+       FROM session_tokens st
+       JOIN users u ON u.id = st.user_id
+       WHERE st.token = $1`,
+      [session_token]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({ error: 'Invalid session token.' });
+    }
+
+    const record = result.rows[0];
+
+    if (record.used || new Date(record.expires_at) < new Date()) {
+      return res.status(400).json({ error: 'Session token expired or already used.' });
+    }
+
+    await pool.query(`UPDATE session_tokens SET used = TRUE WHERE id = $1`, [record.id]);
+
+    const jwtToken = jwt.sign(
+      { userId: record.user_id, email: record.email },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
     const isProduction = process.env.NODE_ENV === 'production';
     res.cookie('auth_token', jwtToken, {
       httpOnly: true,
       secure: isProduction,
       sameSite: isProduction ? 'none' : 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in ms
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    return res.redirect(frontendUrl);
+    return res.json({ userId: record.user_id, email: record.email });
   } catch (err) {
-    console.error('verify error:', err);
-    return res.status(500).send('Internal server error.');
+    console.error('session error:', err);
+    return res.status(500).json({ error: 'Internal server error.' });
   }
 });
 

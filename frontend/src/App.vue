@@ -97,6 +97,34 @@ const showAuthModal = ref(false)
 const showAddModal = ref(false)
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
+
+// After magic link, backend redirects to /?session_token=xxx
+// We exchange it via fetch so the browser properly stores the httpOnly cookie.
+async function exchangeSessionToken() {
+  const params = new URLSearchParams(window.location.search)
+  const sessionToken = params.get('session_token')
+  if (!sessionToken) return false
+
+  // Clean the URL immediately
+  window.history.replaceState(null, '', window.location.pathname)
+
+  try {
+    const res = await fetch(`${API_URL}/api/auth/session`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_token: sessionToken }),
+    })
+    if (res.ok) {
+      currentUser.value = await res.json()
+      return true
+    }
+  } catch (err) {
+    console.error('exchangeSessionToken error:', err)
+  }
+  return false
+}
+
 async function loadUser() {
   try {
     const res = await fetch(`${API_URL}/api/auth/me`, {
@@ -157,7 +185,8 @@ async function handleDelete(id) {
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 onMounted(async () => {
-  await loadUser()
+  const exchanged = await exchangeSessionToken()
+  if (!exchanged) await loadUser()
   await fetchTodos()
 })
 </script>
