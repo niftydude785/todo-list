@@ -97,53 +97,22 @@ const showAuthModal = ref(false)
 const showAddModal = ref(false)
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
-function getToken() {
-  return localStorage.getItem('auth_token')
-}
-
-function authHeaders() {
-  const token = getToken()
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
-
 async function loadUser() {
-  const token = getToken()
-  if (!token) return
-
   try {
     const res = await fetch(`${API_URL}/api/auth/me`, {
-      headers: { Authorization: `Bearer ${token}` },
+      credentials: 'include',
     })
     if (res.ok) {
       currentUser.value = await res.json()
-    } else {
-      // Token invalid / expired — clean up
-      localStorage.removeItem('auth_token')
     }
   } catch {
     // Network error — silently ignore, user stays logged-out
   }
 }
 
-function logout() {
-  localStorage.removeItem('auth_token')
+async function logout() {
+  await fetch(`${API_URL}/api/auth/logout`, { credentials: 'include' })
   currentUser.value = null
-}
-
-// ── Magic-link token extraction from URL hash ─────────────────────────────────
-// After the backend verifies the magic link it redirects to:
-//   http://localhost:5173/#auth_token=<jwt>
-// We read the hash here, store the token and clean the URL.
-function extractTokenFromHash() {
-  const hash = window.location.hash // e.g. "#auth_token=eyJ..."
-  if (!hash.startsWith('#auth_token=')) return
-
-  const token = hash.slice('#auth_token='.length)
-  if (token) {
-    localStorage.setItem('auth_token', token)
-    // Clean the URL so the token is not visible in the address bar
-    window.history.replaceState(null, '', window.location.pathname)
-  }
 }
 
 // ── Todos ─────────────────────────────────────────────────────────────────────
@@ -169,13 +138,10 @@ function handleCreated(newTodo) {
 }
 
 async function handleDelete(id) {
-  const token = getToken()
-  if (!token) return
-
   try {
     const res = await fetch(`${API_URL}/api/todos/${id}`, {
       method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
+      credentials: 'include',
     })
     if (res.ok) {
       todos.value = todos.value.filter((t) => t.id !== id)
@@ -191,7 +157,6 @@ async function handleDelete(id) {
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 onMounted(async () => {
-  extractTokenFromHash()
   await loadUser()
   await fetchTodos()
 })

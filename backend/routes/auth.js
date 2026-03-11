@@ -165,10 +165,17 @@ router.get('/verify', async (req, res) => {
       expiresIn: '7d',
     });
 
-    // Redirect to frontend with the JWT in the URL fragment so it never
-    // appears in server logs. The frontend reads location.hash on mount.
+    // Set JWT in a secure httpOnly cookie (7 days)
+    const isProduction = process.env.NODE_ENV === 'production';
+    res.cookie('auth_token', jwtToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in ms
+    });
+
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
-    return res.redirect(`${frontendUrl}/#auth_token=${jwtToken}`);
+    return res.redirect(frontendUrl);
   } catch (err) {
     console.error('verify error:', err);
     return res.status(500).send('Internal server error.');
@@ -176,14 +183,11 @@ router.get('/verify', async (req, res) => {
 });
 
 // ── GET /api/auth/me ──────────────────────────────────────────────────────────
-// Returns the currently authenticated user (used by the frontend on load).
-router.get('/me', async (req, res) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+router.get('/me', (req, res) => {
+  const token = req.cookies?.auth_token;
+  if (!token) {
     return res.status(401).json({ error: 'No token provided.' });
   }
-
-  const token = authHeader.slice(7);
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -191,6 +195,17 @@ router.get('/me', async (req, res) => {
   } catch (err) {
     return res.status(401).json({ error: 'Invalid or expired token.' });
   }
+});
+
+// ── GET /api/auth/logout ──────────────────────────────────────────────────────
+router.get('/logout', (req, res) => {
+  const isProduction = process.env.NODE_ENV === 'production';
+  res.clearCookie('auth_token', {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
+  });
+  return res.json({ message: 'Logged out.' });
 });
 
 module.exports = router;
