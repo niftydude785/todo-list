@@ -38,15 +38,16 @@ app.locals.pool = pool;
 const allowedOrigins = [
   process.env.FRONTEND_URL || 'http://localhost:5173',
   'http://localhost:5173',
-  'http://localhost:4173', // vite preview
+  'http://localhost:4173',
 ];
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (e.g. curl, Postman)
       if (!origin) return callback(null, true);
+      // Allow exact matches or any vercel.app subdomain
       if (allowedOrigins.includes(origin)) return callback(null, true);
+      if (origin.endsWith('.vercel.app')) return callback(null, true);
       callback(new Error(`CORS policy: origin '${origin}' is not allowed`));
     },
     credentials: true,
