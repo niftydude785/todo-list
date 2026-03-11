@@ -3,10 +3,17 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const { v4: uuidv4 } = require('uuid');
-const { Resend } = require('resend');
+const nodemailer = require('nodemailer');
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 const BCRYPT_ROUNDS = 12;
+
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.GMAIL_USER,
+    pass: process.env.GMAIL_APP_PASSWORD,
+  },
+});
 
 function issueJwt(userId, email) {
   return jwt.sign({ userId, email }, process.env.JWT_SECRET, { expiresIn: '7d' });
@@ -58,11 +65,9 @@ router.post('/register', async (req, res) => {
 
     console.log(`[register] Sending verification email to ${normalizedEmail}`);
     console.log(`[register] Verify link: ${verifyLink}`);
-    console.log(`[register] RESEND_API_KEY set: ${!!process.env.RESEND_API_KEY}`);
-    console.log(`[register] RESEND_FROM_EMAIL: ${process.env.RESEND_FROM_EMAIL}`);
 
-    const { data: sendData, error: sendError } = await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL || 'noreply@yourdomain.com',
+    await transporter.sendMail({
+      from: `"Todo App" <${process.env.GMAIL_USER}>`,
       to: normalizedEmail,
       subject: 'Confirmez votre inscription — Todo App',
       html: `
@@ -90,12 +95,7 @@ router.post('/register', async (req, res) => {
       `,
     });
 
-    if (sendError) {
-      console.error('[register] Resend error:', JSON.stringify(sendError));
-      return res.status(500).json({ error: 'Compte créé mais l\'email n\'a pas pu être envoyé. Erreur: ' + sendError.message });
-    }
-
-    console.log(`[register] Email sent successfully, id: ${sendData?.id}`);
+    console.log(`[register] Email sent successfully to ${normalizedEmail}`);
     return res.json({ message: 'Inscription réussie ! Vérifiez votre email pour confirmer votre compte.' });
   } catch (err) {
     console.error('register error:', err);

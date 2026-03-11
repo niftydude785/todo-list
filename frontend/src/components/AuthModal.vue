@@ -16,6 +16,11 @@
             Cliquez sur le lien pour activer votre compte et vous connecter automatiquement.
           </p>
           <p class="success-hint">Vérifiez votre dossier spam si vous ne le trouvez pas.</p>
+          <!-- Dev mode: display verify link directly when no domain is configured -->
+          <div v-if="devVerifyLink" class="dev-link-box">
+            <p style="font-size:12px;margin-bottom:6px;color:#fbbf24;">Mode test — lien de vérification :</p>
+            <a :href="devVerifyLink" class="dev-link">Cliquer ici pour confirmer le compte</a>
+          </div>
         </div>
         <div class="modal-actions">
           <button class="btn btn-primary" @click="$emit('close')">Fermer</button>
@@ -107,6 +112,7 @@ const tab = ref('login')
 const loading = ref(false)
 const error = ref('')
 const registered = ref(false)
+const devVerifyLink = ref('')
 
 const form = reactive({ email: '', password: '', confirm: '' })
 
@@ -145,6 +151,7 @@ async function register() {
     })
     const data = await res.json()
     if (!res.ok) { error.value = data.error || 'Erreur lors de l\'inscription.'; return }
+    if (data.dev_verify_link) devVerifyLink.value = data.dev_verify_link
     registered.value = true
   } catch {
     error.value = 'Impossible de contacter le serveur.'
@@ -223,6 +230,20 @@ async function login() {
 .success-title { font-size: 18px; font-weight: 700; margin-bottom: 10px; }
 .success-body { color: var(--color-text-muted); font-size: 14px; line-height: 1.7; margin-bottom: 14px; }
 .success-hint { font-size: 12px; color: var(--color-text-muted); opacity: 0.7; }
+
+.dev-link-box {
+  margin-top: 16px;
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+}
+
+.dev-link {
+  color: #fbbf24;
+  font-size: 13px;
+  word-break: break-all;
+}
 
 .btn-spinner {
   display: inline-block;
