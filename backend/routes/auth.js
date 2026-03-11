@@ -56,7 +56,12 @@ router.post('/register', async (req, res) => {
     const backendUrl = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 3001}`;
     const verifyLink = `${backendUrl}/api/auth/verify-email?token=${verificationToken}`;
 
-    await resend.emails.send({
+    console.log(`[register] Sending verification email to ${normalizedEmail}`);
+    console.log(`[register] Verify link: ${verifyLink}`);
+    console.log(`[register] RESEND_API_KEY set: ${!!process.env.RESEND_API_KEY}`);
+    console.log(`[register] RESEND_FROM_EMAIL: ${process.env.RESEND_FROM_EMAIL}`);
+
+    const { data: sendData, error: sendError } = await resend.emails.send({
       from: process.env.RESEND_FROM_EMAIL || 'noreply@yourdomain.com',
       to: normalizedEmail,
       subject: 'Confirmez votre inscription — Todo App',
@@ -85,6 +90,12 @@ router.post('/register', async (req, res) => {
       `,
     });
 
+    if (sendError) {
+      console.error('[register] Resend error:', JSON.stringify(sendError));
+      return res.status(500).json({ error: 'Compte créé mais l\'email n\'a pas pu être envoyé. Erreur: ' + sendError.message });
+    }
+
+    console.log(`[register] Email sent successfully, id: ${sendData?.id}`);
     return res.json({ message: 'Inscription réussie ! Vérifiez votre email pour confirmer votre compte.' });
   } catch (err) {
     console.error('register error:', err);
