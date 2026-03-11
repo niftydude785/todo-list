@@ -98,8 +98,9 @@ router.post('/register', async (req, res) => {
     console.log(`[register] Email sent successfully to ${normalizedEmail}`);
     return res.json({ message: 'Inscription réussie ! Vérifiez votre email pour confirmer votre compte.' });
   } catch (err) {
-    console.error('register error:', err);
-    return res.status(500).json({ error: 'Erreur interne du serveur.' });
+    console.error('register error:', err.message);
+    console.error('register error stack:', err.stack);
+    return res.status(500).json({ error: 'Erreur interne du serveur: ' + err.message });
   }
 });
 
