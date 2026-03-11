@@ -15,6 +15,7 @@ const pool = new Pool({
   ssl: {
     rejectUnauthorized: false, // Required for Supabase / Render hosted Postgres
   },
+  family: 4, // Force IPv4 (Render free tier blocks IPv6)
 });
 
 // Test DB connection on startup
