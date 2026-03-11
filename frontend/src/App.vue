@@ -31,8 +31,36 @@
         <div class="page-title-row">
           <h1 class="page-title">Liste de tâches</h1>
           <span class="todo-count" v-if="todos.length > 0">
-            {{ todos.length }} tâche{{ todos.length > 1 ? 's' : '' }}
+            {{ filteredTodos.length }} / {{ todos.length }} tâche{{ todos.length > 1 ? 's' : '' }}
           </span>
+        </div>
+
+        <!-- Filters -->
+        <div class="filters-bar">
+          <div class="filter-group">
+            <button
+              v-for="s in [['all','Toutes'], ['a-faire','À faire'], ['depasse','Dépassées']]"
+              :key="s[0]"
+              class="filter-btn"
+              :class="{ active: filterStatus === s[0], [`status-${s[0]}`]: true }"
+              @click="filterStatus = s[0]"
+            >{{ s[1] }}</button>
+          </div>
+          <div class="filter-group">
+            <button
+              class="filter-btn"
+              :class="{ active: filterColor === 'all' }"
+              @click="filterColor = 'all'"
+            >Toutes couleurs</button>
+            <button
+              v-for="c in colors"
+              :key="c"
+              class="filter-color-btn"
+              :class="[c, { active: filterColor === c }]"
+              :title="colorLabels[c]"
+              @click="filterColor = c"
+            ></button>
+          </div>
         </div>
 
         <!-- Loading state -->
@@ -48,7 +76,7 @@
         </div>
 
         <!-- Empty state -->
-        <div v-else-if="todos.length === 0" class="state-message">
+        <div v-else-if="filteredTodos.length === 0" class="state-message">
           <p class="empty-icon">📋</p>
           <p>Aucune tâche pour l'instant.</p>
           <p v-if="!currentUser" class="state-hint">
@@ -59,7 +87,7 @@
         <!-- Todo list -->
         <TodoList
           v-else
-          :todos="todos"
+          :todos="filteredTodos"
           :current-user="currentUser"
           @delete="handleDelete"
         />
@@ -82,7 +110,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import TodoList from './components/TodoList.vue'
 import AuthModal from './components/AuthModal.vue'
 import AddTodoModal from './components/AddTodoModal.vue'
@@ -96,6 +124,25 @@ const loading = ref(false)
 const fetchError = ref(null)
 const showAuthModal = ref(false)
 const showAddModal = ref(false)
+
+// ── Filters ───────────────────────────────────────────────────────────────────
+const filterStatus = ref('all')   // 'all' | 'a-faire' | 'depasse'
+const filterColor = ref('all')    // 'all' | 'red' | 'orange' | ...
+
+const colors = ['red', 'orange', 'yellow', 'green', 'blue', 'purple']
+const colorLabels = { red: 'Rouge', orange: 'Orange', yellow: 'Jaune', green: 'Vert', blue: 'Bleu', purple: 'Violet' }
+
+const today = new Date().toISOString().split('T')[0]
+
+const filteredTodos = computed(() => {
+  return todos.value.filter(todo => {
+    if (filterColor.value !== 'all' && todo.color_status !== filterColor.value) return false
+    if (filterStatus.value === 'all') return true
+    if (!todo.due_date) return filterStatus.value === 'all'
+    const status = todo.due_date >= today ? 'a-faire' : 'depasse'
+    return status === filterStatus.value
+  })
+})
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
 function getToken() {
@@ -306,6 +353,75 @@ onMounted(async () => {
 .state-hint {
   font-size: 13px;
 }
+
+/* ── Filters ─────────────────────────────────────────────────────────────── */
+.filters-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 24px;
+  align-items: center;
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.filter-btn {
+  padding: 5px 14px;
+  border-radius: 20px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.filter-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-text);
+}
+
+.filter-btn.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
+.filter-btn.status-a-faire.active {
+  background: rgba(34, 197, 94, 0.2);
+  border-color: rgba(34, 197, 94, 0.5);
+  color: #4ade80;
+}
+
+.filter-btn.status-depasse.active {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.5);
+  color: #f87171;
+}
+
+.filter-color-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.filter-color-btn:hover { transform: scale(1.2); }
+.filter-color-btn.active { border-color: #fff; transform: scale(1.2); box-shadow: 0 0 0 2px var(--color-primary); }
+
+.filter-color-btn.red    { background: #ef4444; }
+.filter-color-btn.orange { background: #f97316; }
+.filter-color-btn.yellow { background: #eab308; }
+.filter-color-btn.green  { background: #22c55e; }
+.filter-color-btn.blue   { background: #3b82f6; }
+.filter-color-btn.purple { background: #a855f7; }
 
 /* ── Spinner ─────────────────────────────────────────────────────────────── */
 .spinner {
