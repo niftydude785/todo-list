@@ -49,17 +49,20 @@
           <div class="filter-group">
             <button
               class="filter-btn"
-              :class="{ active: filterColor === 'all' }"
-              @click="filterColor = 'all'"
-            >Toutes couleurs</button>
+              :class="{ active: filterActivity === 'all' }"
+              @click="filterActivity = 'all'"
+            >Toutes</button>
             <button
-              v-for="c in colors"
-              :key="c"
-              class="filter-color-btn"
-              :class="[c, { active: filterColor === c }]"
-              :title="colorLabels[c]"
-              @click="filterColor = c"
-            ></button>
+              v-for="act in activities"
+              :key="act.value"
+              class="filter-activity-btn"
+              :class="[act.value, { active: filterActivity === act.value }]"
+              :title="act.label"
+              @click="filterActivity = act.value"
+            >
+              <span>{{ act.icon }}</span>
+              <span>{{ act.label }}</span>
+            </button>
           </div>
         </div>
 
@@ -126,18 +129,24 @@ const showAuthModal = ref(false)
 const showAddModal = ref(false)
 
 // ── Filters ───────────────────────────────────────────────────────────────────
-const filterStatus = ref('all')   // 'all' | 'a-faire' | 'depasse'
-const filterColor = ref('all')    // 'all' | 'red' | 'orange' | ...
+const filterStatus = ref('all')     // 'all' | 'a-faire' | 'depasse'
+const filterActivity = ref('all')   // 'all' | 'cuisine' | 'sport' | ...
 
-const colors = ['red', 'orange', 'yellow', 'green', 'blue', 'purple']
-const colorLabels = { red: 'Rouge', orange: 'Orange', yellow: 'Jaune', green: 'Vert', blue: 'Bleu', purple: 'Violet' }
+const activities = [
+  { value: 'cuisine', label: 'Cuisine', icon: '🍳' },
+  { value: 'sport',   label: 'Sport',   icon: '🏋️' },
+  { value: 'social',  label: 'Social',  icon: '👥' },
+  { value: 'etudes',  label: 'Études',  icon: '📚' },
+  { value: 'travail', label: 'Travail', icon: '💼' },
+  { value: 'maison',  label: 'Maison',  icon: '🏡' },
+]
 
 const today = new Date().toISOString().split('T')[0]
 
 const filteredTodos = computed(() => {
   return todos.value
     .filter(todo => {
-      if (filterColor.value !== 'all' && todo.color_status !== filterColor.value) return false
+      if (filterActivity.value !== 'all' && todo.activity !== filterActivity.value) return false
       if (filterStatus.value === 'all') return true
       if (!todo.due_date) return false
       const status = todo.due_date >= today ? 'a-faire' : 'depasse'
@@ -411,24 +420,39 @@ onMounted(async () => {
   color: #f87171;
 }
 
-.filter-color-btn {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  border: 2px solid transparent;
+.filter-activity-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
-  transition: transform 0.15s ease, border-color 0.15s ease;
+  transition: all 0.15s ease;
+  color: var(--color-text-muted);
 }
 
-.filter-color-btn:hover { transform: scale(1.2); }
-.filter-color-btn.active { border-color: #fff; transform: scale(1.2); box-shadow: 0 0 0 2px var(--color-primary); }
+.filter-activity-btn:hover {
+  transform: translateY(-1px);
+  color: var(--color-text);
+  border-color: currentColor;
+}
 
-.filter-color-btn.red    { background: #ef4444; }
-.filter-color-btn.orange { background: #f97316; }
-.filter-color-btn.yellow { background: #eab308; }
-.filter-color-btn.green  { background: #22c55e; }
-.filter-color-btn.blue   { background: #3b82f6; }
-.filter-color-btn.purple { background: #a855f7; }
+.filter-activity-btn.cuisine         { --act-color: #f97316; }
+.filter-activity-btn.sport           { --act-color: #22c55e; }
+.filter-activity-btn.social          { --act-color: #3b82f6; }
+.filter-activity-btn.etudes          { --act-color: #a855f7; }
+.filter-activity-btn.travail         { --act-color: #eab308; }
+.filter-activity-btn.maison          { --act-color: #ef4444; }
+
+.filter-activity-btn.active {
+  background: color-mix(in srgb, var(--act-color) 15%, transparent);
+  border-color: var(--act-color);
+  color: var(--act-color);
+}
 
 /* ── Spinner ─────────────────────────────────────────────────────────────── */
 .spinner {

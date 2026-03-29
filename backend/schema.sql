@@ -17,9 +17,13 @@ CREATE TABLE IF NOT EXISTS todos (
   text TEXT NOT NULL,
   image_base64 TEXT,
   due_date DATE,
-  color_status VARCHAR(50) DEFAULT 'green',
+  activity VARCHAR(50) DEFAULT 'travail', -- cuisine | sport | social | etudes | travail | maison
   created_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Migration depuis une installation existante (à exécuter une seule fois) :
+-- ALTER TABLE todos RENAME COLUMN color_status TO activity;
+-- UPDATE todos SET activity = 'travail' WHERE activity NOT IN ('cuisine','sport','social','etudes','travail','maison');
 
 CREATE INDEX IF NOT EXISTS todos_user_id_idx ON todos(user_id);
 CREATE INDEX IF NOT EXISTS todos_created_at_idx ON todos(created_at DESC);

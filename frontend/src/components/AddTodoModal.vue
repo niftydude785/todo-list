@@ -33,26 +33,26 @@
           />
         </div>
 
-        <!-- Color status -->
+        <!-- Activity -->
         <div class="form-group" style="margin-bottom: 16px;">
-          <label class="form-label">Couleur de statut</label>
-          <div class="color-picker">
+          <label class="form-label">Catégorie d'activité</label>
+          <div class="activity-picker">
             <button
-              v-for="color in colors"
-              :key="color.value"
+              v-for="act in activities"
+              :key="act.value"
               type="button"
-              class="color-option"
-              :class="[color.value, { selected: form.color_status === color.value }]"
-              :title="color.label"
-              :aria-label="color.label"
-              :aria-pressed="form.color_status === color.value"
-              @click="form.color_status = color.value"
+              class="activity-option"
+              :class="[act.value, { selected: form.activity === act.value }]"
+              :title="act.label"
+              :aria-label="act.label"
+              :aria-pressed="form.activity === act.value"
+              @click="form.activity = act.value"
               :disabled="loading"
-            ></button>
+            >
+              <span class="act-icon">{{ act.icon }}</span>
+              <span class="act-label">{{ act.label }}</span>
+            </button>
           </div>
-          <span class="color-label">
-            {{ colors.find(c => c.value === form.color_status)?.label }}
-          </span>
         </div>
 
         <!-- Image upload -->
@@ -111,19 +111,19 @@ const loading = ref(false)
 const error = ref('')
 const fileInput = ref(null)
 
-const colors = [
-  { value: 'red',    label: 'Rouge' },
-  { value: 'orange', label: 'Orange' },
-  { value: 'yellow', label: 'Jaune' },
-  { value: 'green',  label: 'Vert' },
-  { value: 'blue',   label: 'Bleu' },
-  { value: 'purple', label: 'Violet' },
+const activities = [
+  { value: 'cuisine', label: 'Cuisine',    icon: '🍳' },
+  { value: 'sport',   label: 'Sport',      icon: '🏋️' },
+  { value: 'social',  label: 'Social',     icon: '👥' },
+  { value: 'etudes',  label: 'Études',     icon: '📚' },
+  { value: 'travail', label: 'Travail',    icon: '💼' },
+  { value: 'maison',  label: 'Maison',     icon: '🏡' },
 ]
 
 const form = reactive({
   text: '',
   due_date: '',
-  color_status: 'green',
+  activity: 'travail',
   image_base64: '',
 })
 
@@ -177,7 +177,7 @@ async function submit() {
       body: JSON.stringify({
         text: form.text.trim(),
         due_date: form.due_date || null,
-        color_status: form.color_status,
+        activity: form.activity,
         image_base64: form.image_base64 || null,
       }),
     })
@@ -204,43 +204,61 @@ async function submit() {
   max-width: 520px;
 }
 
-/* Color picker */
-.color-picker {
+/* Activity picker */
+.activity-picker {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.activity-option {
   display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-bottom: 6px;
-}
-
-.color-option {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: 3px solid transparent;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 12px 6px;
+  border-radius: var(--radius-sm);
+  border: 2px solid transparent;
   cursor: pointer;
-  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.color-option:hover {
-  transform: scale(1.15);
-}
-
-.color-option.selected {
-  border-color: #fff;
-  box-shadow: 0 0 0 2px var(--color-primary), 0 0 12px rgba(99, 102, 241, 0.5);
-  transform: scale(1.15);
-}
-
-.color-option.red    { background: #ef4444; }
-.color-option.orange { background: #f97316; }
-.color-option.yellow { background: #eab308; }
-.color-option.green  { background: #22c55e; }
-.color-option.blue   { background: #3b82f6; }
-.color-option.purple { background: #a855f7; }
-
-.color-label {
-  font-size: 12px;
+  background: rgba(255,255,255,0.04);
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
   color: var(--color-text-muted);
+}
+
+.activity-option:hover {
+  transform: translateY(-2px);
+  background: rgba(255,255,255,0.08);
+}
+
+.activity-option.selected {
+  border-color: currentColor;
+  background: rgba(255,255,255,0.06);
+  transform: translateY(-2px);
+}
+
+.activity-option.cuisine         { color: #f97316; }
+.activity-option.cuisine.selected { border-color: #f97316; background: rgba(249,115,22,0.12); }
+.activity-option.sport           { color: #22c55e; }
+.activity-option.sport.selected   { border-color: #22c55e; background: rgba(34,197,94,0.12); }
+.activity-option.social          { color: #3b82f6; }
+.activity-option.social.selected  { border-color: #3b82f6; background: rgba(59,130,246,0.12); }
+.activity-option.etudes          { color: #a855f7; }
+.activity-option.etudes.selected  { border-color: #a855f7; background: rgba(168,85,247,0.12); }
+.activity-option.travail         { color: #eab308; }
+.activity-option.travail.selected { border-color: #eab308; background: rgba(234,179,8,0.12); }
+.activity-option.maison          { color: #ef4444; }
+.activity-option.maison.selected  { border-color: #ef4444; background: rgba(239,68,68,0.12); }
+
+.act-icon {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.act-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 /* Image upload */

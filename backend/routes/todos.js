@@ -35,7 +35,7 @@ router.get('/', async (req, res) => {
          t.text,
          t.image_base64,
          t.due_date,
-         t.color_status,
+         t.activity,
          t.created_at
        FROM todos t
        JOIN users u ON u.id = t.user_id
@@ -51,17 +51,17 @@ router.get('/', async (req, res) => {
 
 // ── POST /api/todos ───────────────────────────────────────────────────────────
 // Protected — creates a new todo for the authenticated user.
-// Body: { text, image_base64?, due_date?, color_status? }
+// Body: { text, image_base64?, due_date?, activity? }
 router.post('/', requireAuth, async (req, res) => {
-  const { text, image_base64, due_date, color_status } = req.body;
+  const { text, image_base64, due_date, activity } = req.body;
 
   if (!text || typeof text !== 'string' || text.trim().length === 0) {
     return res.status(400).json({ error: 'Todo text is required.' });
   }
 
-  const validColors = ['red', 'orange', 'yellow', 'green', 'blue', 'purple'];
-  const resolvedColor =
-    color_status && validColors.includes(color_status) ? color_status : 'green';
+  const validActivities = ['cuisine', 'sport', 'social', 'etudes', 'travail', 'maison'];
+  const resolvedActivity =
+    activity && validActivities.includes(activity) ? activity : 'travail';
 
   // Validate due_date format if provided
   let resolvedDueDate = null;
@@ -81,10 +81,10 @@ router.post('/', requireAuth, async (req, res) => {
 
   try {
     const result = await pool.query(
-      `INSERT INTO todos (user_id, text, image_base64, due_date, color_status)
+      `INSERT INTO todos (user_id, text, image_base64, due_date, activity)
        VALUES ($1, $2, $3, $4, $5)
-       RETURNING id, user_id, text, image_base64, due_date, color_status, created_at`,
-      [req.user.userId, text.trim(), resolvedImage, resolvedDueDate, resolvedColor]
+       RETURNING id, user_id, text, image_base64, due_date, activity, created_at`,
+      [req.user.userId, text.trim(), resolvedImage, resolvedDueDate, resolvedActivity]
     );
 
     const newTodo = result.rows[0];

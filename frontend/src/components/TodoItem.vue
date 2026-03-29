@@ -1,12 +1,12 @@
 <template>
   <article
     class="todo-card"
-    :class="[`border-${todo.color_status}`, statusClass]"
+    :class="[`border-${todo.activity}`, statusClass]"
   >
-    <!-- Status badge -->
-    <div class="card-status-bar" :class="todo.color_status">
-      <span class="color-dot" :class="todo.color_status"></span>
-      <span class="status-color-label">{{ colorLabel }}</span>
+    <!-- Activity badge -->
+    <div class="card-status-bar" :class="todo.activity">
+      <span class="act-icon">{{ activityInfo.icon }}</span>
+      <span class="status-color-label">{{ activityInfo.label }}</span>
       <span class="status-spacer"></span>
       <span class="due-badge" :class="statusClass">{{ dueLabel }}</span>
     </div>
@@ -72,16 +72,16 @@ const deleting = ref(false)
 
 // ── Computed ──────────────────────────────────────────────────────────────────
 
-const colorLabels = {
-  red: 'Rouge',
-  orange: 'Orange',
-  yellow: 'Jaune',
-  green: 'Vert',
-  blue: 'Bleu',
-  purple: 'Violet',
+const activityMap = {
+  cuisine: { label: 'Cuisine', icon: '🍳' },
+  sport:   { label: 'Sport',   icon: '🏋️' },
+  social:  { label: 'Social',  icon: '👥' },
+  etudes:  { label: 'Études',  icon: '📚' },
+  travail: { label: 'Travail', icon: '💼' },
+  maison:  { label: 'Maison',  icon: '🏡' },
 }
 
-const colorLabel = computed(() => colorLabels[props.todo.color_status] ?? props.todo.color_status)
+const activityInfo = computed(() => activityMap[props.todo.activity] ?? { label: props.todo.activity ?? '—', icon: '📌' })
 
 // Determine whether the todo is overdue or not
 const statusClass = computed(() => {
@@ -178,17 +178,22 @@ function confirmDelete() {
   font-size: 13px;
 }
 
-.card-status-bar.red    { background: rgba(239, 68, 68, 0.08); }
-.card-status-bar.orange { background: rgba(249, 115, 22, 0.08); }
-.card-status-bar.yellow { background: rgba(234, 179, 8, 0.08); }
-.card-status-bar.green  { background: rgba(34, 197, 94, 0.08); }
-.card-status-bar.blue   { background: rgba(59, 130, 246, 0.08); }
-.card-status-bar.purple { background: rgba(168, 85, 247, 0.08); }
+.card-status-bar.cuisine { background: rgba(249, 115, 22, 0.08); color: #f97316; }
+.card-status-bar.sport   { background: rgba(34, 197, 94, 0.08);  color: #22c55e; }
+.card-status-bar.social  { background: rgba(59, 130, 246, 0.08); color: #3b82f6; }
+.card-status-bar.etudes  { background: rgba(168, 85, 247, 0.08); color: #a855f7; }
+.card-status-bar.travail { background: rgba(234, 179, 8, 0.08);  color: #eab308; }
+.card-status-bar.maison  { background: rgba(239, 68, 68, 0.08);  color: #ef4444; }
+
+.act-icon {
+  font-size: 16px;
+  line-height: 1;
+  flex-shrink: 0;
+}
 
 .status-color-label {
   font-weight: 600;
   font-size: 12px;
-  color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
