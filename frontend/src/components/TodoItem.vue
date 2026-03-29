@@ -12,14 +12,31 @@
     </div>
 
     <!-- Image -->
-    <div v-if="todo.image_base64" class="card-image-wrapper">
+    <div v-if="todo.image_base64" class="card-image-wrapper" @click="lightboxOpen = true">
       <img
         :src="todo.image_base64"
         :alt="`Image pour : ${todo.text}`"
         class="card-image"
         loading="lazy"
       />
+      <span class="zoom-hint">🔍</span>
     </div>
+
+    <!-- Lightbox -->
+    <Teleport to="body">
+      <div
+        v-if="lightboxOpen"
+        class="lightbox-overlay"
+        @click.self="lightboxOpen = false"
+      >
+        <img
+          :src="todo.image_base64"
+          :alt="`Image pour : ${todo.text}`"
+          class="lightbox-img"
+        />
+        <button class="lightbox-close" @click="lightboxOpen = false" aria-label="Fermer">×</button>
+      </div>
+    </Teleport>
 
     <!-- Content -->
     <div class="card-body">
@@ -54,7 +71,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 
 const props = defineProps({
   todo: {
@@ -69,6 +86,17 @@ const props = defineProps({
 
 const emit = defineEmits(['delete'])
 const deleting = ref(false)
+const lightboxOpen = ref(false)
+
+onMounted(() => {
+  window.addEventListener('keydown', onKeydown)
+})
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKeydown)
+})
+function onKeydown(e) {
+  if (e.key === 'Escape') lightboxOpen.value = false
+}
 
 // ── Computed ──────────────────────────────────────────────────────────────────
 
@@ -234,6 +262,8 @@ function confirmDelete() {
   height: 180px;
   overflow: hidden;
   background: var(--color-bg);
+  position: relative;
+  cursor: zoom-in;
 }
 
 .card-image {
@@ -246,6 +276,81 @@ function confirmDelete() {
 
 .todo-card:hover .card-image {
   transform: scale(1.03);
+}
+
+.zoom-hint {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(0,0,0,0.55);
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.card-image-wrapper:hover .zoom-hint {
+  opacity: 1;
+}
+
+/* ── Lightbox ────────────────────────────────────────────────────────────── */
+.lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0,0,0,0.88);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: lb-in 0.18s ease;
+}
+
+@keyframes lb-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.lightbox-img {
+  max-width: 90vw;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: 6px;
+  box-shadow: 0 8px 60px rgba(0,0,0,0.7);
+  animation: lb-scale 0.18s ease;
+}
+
+@keyframes lb-scale {
+  from { transform: scale(0.94); }
+  to   { transform: scale(1); }
+}
+
+.lightbox-close {
+  position: fixed;
+  top: 18px;
+  right: 24px;
+  background: rgba(255,255,255,0.12);
+  border: none;
+  color: #fff;
+  font-size: 28px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: background 0.15s ease;
+}
+
+.lightbox-close:hover {
+  background: rgba(255,255,255,0.22);
 }
 
 /* ── Body ────────────────────────────────────────────────────────────────── */
